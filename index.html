@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="entrada.css">
+<title>Login - CubeRank</title>
+
+</head>
+
+<body>
+
+<div class="login">
+  <div class="card">
+    <h2>CubeRank 🚀</h2>
+
+    <input id="nome" placeholder="Seu nome">
+
+    <select id="avatar">
+      <option value="🧊">🧊</option>
+      <option value="🔥">🔥</option>
+      <option value="⚡">⚡</option>
+    </select>
+
+    <button onclick="entrar()">Entrar</button>
+  </div>
+</div>
+
+<script>
+function entrar() {
+  const nome = document.getElementById("nome").value;
+
+  if (!nome) {
+    alert("Digite um nome");
+    return;
+  }
+
+  const player = {
+    id: crypto.randomUUID(),
+    nome: nome,
+    avatar: document.getElementById("avatar").value
+  };
+
+  localStorage.setItem("player", JSON.stringify(player));
+
+  // REDIRECIONA PRO APP
+  window.location.href = "cubify.html";
+}
+</script>
+
+</body>
+</html>
