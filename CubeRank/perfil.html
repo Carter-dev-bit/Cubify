@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Perfil</title>
+<link rel="stylesheet" href="perfil.css">
+</head>
+
+<body>
+<button onclick="voltar()">⬅ Voltar</button>
+
+<div class="perfil">
+
+  <div class="card">
+    <h2 id="nome"></h2>
+    <p id="avatar"></p>
+  </div>
+
+  <div class="stats">
+    <div>Best: <span id="best"></span></div>
+    <div>Média: <span id="media"></span></div>
+    <div>Avg5: <span id="avg5"></span></div>
+  </div>
+
+  <canvas id="grafico"></canvas>
+
+  <h3>Histórico</h3>
+  <ul id="historico"></ul>
+
+</div>
+
+<script src="perfil.js"></script>
+</body>
+</html>
