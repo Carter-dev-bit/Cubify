@@ -85,6 +85,7 @@ button:hover {
 
 body {
   touch-action: manipulation;
+  overscroll-behavior: none;
 }
 
   .app {

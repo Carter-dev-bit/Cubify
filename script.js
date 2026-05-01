@@ -258,31 +258,46 @@ atualizarStats();
 carregarRanking();
 
 
-let touchStartTime = 0;
+let touchSegurando = false;
 
-document.body.addEventListener("touchstart", () => {
+// 👇 IMPORTANTE: passive: false
+document.body.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+
   if (running) {
     pararTimer();
     return;
   }
 
-  if (!inspecionando) {
+  if (!inspecionando && !segurando) {
     iniciarInspecao();
     return;
   }
 
-  touchStartTime = Date.now();
-  timerEl.style.color = "red";
+  if (inspecionando && !touchSegurando) {
+    touchSegurando = true;
+    timerEl.style.color = "red";
 
-  setTimeout(() => {
-    pronto = true;
-    timerEl.style.color = "#22c55e";
-  }, 500);
-});
+    timeoutSegurar = setTimeout(() => {
+      pronto = true;
+      timerEl.style.color = "#22c55e";
+    }, 500);
+  }
 
-document.body.addEventListener("touchend", () => {
-  if (pronto) iniciarTimer();
+}, { passive: false });
 
+
+document.body.addEventListener("touchend", (e) => {
+  e.preventDefault();
+
+  if (pronto) {
+    iniciarTimer();
+  }
+
+  touchSegurando = false;
   pronto = false;
+
+  clearTimeout(timeoutSegurar);
   timerEl.style.color = "white";
-});
+
+}, { passive: false });
