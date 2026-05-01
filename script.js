@@ -256,3 +256,33 @@ novoScramble();
 renderTempos();
 atualizarStats();
 carregarRanking();
+
+
+let touchStartTime = 0;
+
+document.body.addEventListener("touchstart", () => {
+  if (running) {
+    pararTimer();
+    return;
+  }
+
+  if (!inspecionando) {
+    iniciarInspecao();
+    return;
+  }
+
+  touchStartTime = Date.now();
+  timerEl.style.color = "red";
+
+  setTimeout(() => {
+    pronto = true;
+    timerEl.style.color = "#22c55e";
+  }, 500);
+});
+
+document.body.addEventListener("touchend", () => {
+  if (pronto) iniciarTimer();
+
+  pronto = false;
+  timerEl.style.color = "white";
+});
