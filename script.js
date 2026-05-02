@@ -261,7 +261,9 @@ carregarRanking();
 let touchSegurando = false;
 
 // 👇 IMPORTANTE: passive: false
-document.body.addEventListener("touchstart", (e) => {
+const areaTimer = document.getElementById("areaTimer");
+
+areaTimer.addEventListener("touchstart", (e) => {
   e.preventDefault();
 
   if (running) {
@@ -274,8 +276,8 @@ document.body.addEventListener("touchstart", (e) => {
     return;
   }
 
-  if (inspecionando && !touchSegurando) {
-    touchSegurando = true;
+  if (inspecionando && !segurando) {
+    segurando = true;
     timerEl.style.color = "red";
 
     timeoutSegurar = setTimeout(() => {
@@ -286,15 +288,12 @@ document.body.addEventListener("touchstart", (e) => {
 
 }, { passive: false });
 
-
-document.body.addEventListener("touchend", (e) => {
+areaTimer.addEventListener("touchend", (e) => {
   e.preventDefault();
 
-  if (pronto) {
-    iniciarTimer();
-  }
+  if (pronto) iniciarTimer();
 
-  touchSegurando = false;
+  segurando = false;
   pronto = false;
 
   clearTimeout(timeoutSegurar);
