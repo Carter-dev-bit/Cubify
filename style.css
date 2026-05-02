@@ -81,31 +81,46 @@ button:hover {
   font-size: 14px;
 }
 
-@media screen and (orientation: portrait) {
-  body {
+#rotate-warning {
+  position: fixed;
+  inset: 0;
+  background: #020617;
+  color: white;
+  display: none;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  z-index: 9999;
+  text-align: center;
+}
+
+/* Se estiver em pé (vertical) */
+@media (orientation: portrait) {
+  #rotate-warning {
+    display: flex;
+  }
+
+  .app {
+    display: none;
+  }
+}
+
+/* Horizontal (libera app) */
+@media (orientation: landscape) {
+  #rotate-warning {
     display: none;
   }
 
-  #rotateMessage {
+  .app {
     display: flex;
   }
 }
 
-@media screen and (orientation: landscape) {
-  #rotateMessage {
-    display: none;
-  }
-}
-
-#rotateMessage {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: #0b1220;
-  color: white;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  z-index: 999;
+#scramble {
   text-align: center;
+  font-size: 18px;
+  max-width: 90%;
+  margin: 20px auto;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
