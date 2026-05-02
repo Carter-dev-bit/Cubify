@@ -83,37 +83,53 @@ button:hover {
 
 @media (max-width: 768px) {
 
-body {
-  touch-action: manipulation;
-  overscroll-behavior: none;
-}
-
   .app {
+    display: flex;
     flex-direction: column;
     align-items: center;
+    padding: 15px;
   }
 
   .sidebar {
     width: 100%;
-    display: flex;
-    justify-content: space-around;
-    flex-wrap: wrap;
-    padding: 10px;
-  }
-
-  #timer {
-    font-size: 60px;
+    order: 4; /* joga pra baixo */
   }
 
   #scramble {
-    font-size: 14px;
+    order: 1;
     text-align: center;
-    padding: 0 10px;
+    font-size: 14px;
+    margin-bottom: 10px;
   }
 
-  button {
+  #areaTimer {
+    order: 2;
     width: 100%;
-    margin-top: 10px;
+    height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #timer {
+    font-size: 70px;
+  }
+
+  .botoes {
+    order: 3;
+    display: flex;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .botoes button {
+    flex: 1;
+  }
+
+  #cubo {
+    order: 5;
+    width: 100%;
+    margin-top: 15px;
   }
 
 }
