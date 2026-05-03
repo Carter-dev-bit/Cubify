@@ -1,6 +1,7 @@
 // ================== IMPORTS ==================
 import { TwistyPlayer } from "https://cdn.cubing.net/js/cubing/twisty";
 import { randomScrambleForEvent } from "https://cdn.cubing.net/js/cubing/scramble";
+import { update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 // ================== FIREBASE ==================
 const db = window.db;
@@ -12,20 +13,31 @@ const onValue = window.onValue;
 let playerData = JSON.parse(localStorage.getItem("player")) || {
   id: crypto.randomUUID(),
   nome: "Player_" + Math.floor(Math.random() * 1000),
-  avatar: "🧊"
+  avatar: "🧊",
+  rating: 1000
 };
 
+if (!playerData.rating) playerData.rating = 1000;
 localStorage.setItem("player", JSON.stringify(playerData));
 
-// ================== TEMPOS (LOCAL STORAGE) ==================
+// ================== TEMPOS ==================
 let tempos = JSON.parse(localStorage.getItem("tempos")) || [];
+
+// ================== RANK ==================
+function getRank(rating) {
+  if (rating < 800) return "Bronze";
+  if (rating < 1000) return "Prata";
+  if (rating < 1200) return "Ouro";
+  if (rating < 1400) return "Platina";
+  if (rating < 1600) return "Diamante";
+  return "Mestre";
+}
 
 // ================== CUBO ==================
 const cubePlayer = new TwistyPlayer({
   puzzle: "3x3x3",
   alg: ""
 });
-
 document.getElementById("cubo").appendChild(cubePlayer);
 
 // ================== ELEMENTOS ==================
@@ -59,15 +71,9 @@ document.addEventListener("keydown", (e) => {
   if (e.code === "Space") {
     e.preventDefault();
 
-    if (running) {
-      pararTimer();
-      return;
-    }
+    if (running) return pararTimer();
 
-    if (!inspecionando && !segurando) {
-      iniciarInspecao();
-      return;
-    }
+    if (!inspecionando && !segurando) return iniciarInspecao();
 
     if (inspecionando && !segurando) {
       segurando = true;
@@ -144,27 +150,33 @@ function pararTimer() {
     solve.tempo += 2;
   }
 
-  // ================== SALVAR LOCAL ==================
+  if (!solve.dnf) atualizarElo(solve.tempo);
+
   tempos.push(solve);
   localStorage.setItem("tempos", JSON.stringify(tempos));
 
   renderTempos();
   atualizarStats();
 
-  // ================== FIREBASE ==================
+  // 🔥 SALA (1v1)
+  const roomId = localStorage.getItem("roomId");
+  if (roomId && db) {
+    update(ref(db, `rooms/${roomId}/players/${playerData.id}`), {
+      tempo: solve.tempo
+    });
+  }
+
+  // 🔥 FIREBASE GLOBAL
   if (db) {
-    // ranking global
     push(ref(db, "ranking"), {
       playerId: playerData.id,
       nome: playerData.nome,
       avatar: playerData.avatar,
       tempo: solve.tempo,
       dnf: solve.dnf,
-      data: solve.data
+      rating: playerData.rating,
+      data: Date.now()
     });
-
-    // histórico do jogador
-    push(ref(db, "solves/" + playerData.id), solve);
   }
 
   novoScramble();
@@ -175,142 +187,143 @@ function updateTimer() {
   timerEl.innerText = (tempo / 1000).toFixed(2);
 }
 
-// ================== LISTA ==================
-function renderTempos() {
-  let lista = document.getElementById("listaTempos");
-  lista.innerHTML = "";
-
-  tempos.forEach(t => {
-    let li = document.createElement("li");
-
-    if (t.dnf) li.innerText = "DNF";
-    else if (t.penalty === 2) li.innerText = t.tempo.toFixed(2) + " +2";
-    else li.innerText = t.tempo.toFixed(2);
-
-    lista.appendChild(li);
-  });
-}
-
 // ================== STATS ==================
 function atualizarStats() {
-  if (tempos.length === 0) return;
-
   let validos = tempos.filter(t => !t.dnf);
+  if (validos.length === 0) return;
 
-  if (validos.length > 0) {
-    let best = Math.min(...validos.map(t => t.tempo));
-    document.getElementById("best").innerText = best.toFixed(2) + "s";
+  let best = Math.min(...validos.map(t => t.tempo));
+  document.getElementById("best").innerText = best.toFixed(2) + "s";
 
-    let media = validos.reduce((a, b) => a + b.tempo, 0) / validos.length;
-    document.getElementById("media").innerText = media.toFixed(2) + "s";
-  }
+  let media = validos.reduce((a, b) => a + b.tempo, 0) / validos.length;
+  document.getElementById("media").innerText = media.toFixed(2) + "s";
 
   document.getElementById("total").innerText = tempos.length;
+}
 
-  if (tempos.length >= 5) {
-    let ultimos = tempos.slice(-5).filter(t => !t.dnf);
+// ================== ELO ==================
+function atualizarElo(tempoAtual) {
+  let validos = tempos.filter(t => !t.dnf);
+  if (validos.length < 5) return;
 
-    if (ultimos.length >= 3) {
-      let valores = ultimos.map(t => t.tempo).sort((a, b) => a - b);
-      valores.pop();
-      valores.shift();
+  let media = validos.reduce((a, b) => a + b.tempo, 0) / validos.length;
+  let diff = media - tempoAtual;
 
-      let avg5 = valores.reduce((a, b) => a + b, 0) / valores.length;
-      document.getElementById("avg5").innerText = avg5.toFixed(2) + "s";
-    }
-  }
+  let ganho = Math.max(-25, Math.min(25, diff * 5));
+
+  playerData.rating += Math.round(ganho);
+  if (playerData.rating < 0) playerData.rating = 0;
+
+  localStorage.setItem("player", JSON.stringify(playerData));
 }
 
 // ================== RANKING ==================
 function carregarRanking() {
   if (!db) return;
 
-  const rankingRef = ref(db, "ranking");
-
-  onValue(rankingRef, (snapshot) => {
+  onValue(ref(db, "ranking"), (snapshot) => {
     const data = snapshot.val();
     const lista = document.getElementById("ranking");
 
     lista.innerHTML = "";
-
     if (!data) return;
 
-    let valores = Object.values(data);
+    let melhores = {};
 
-    // 🔥 AGRUPAR POR PLAYER (pegar só o melhor de cada)
-    let melhoresPorPlayer = {};
-
-    valores.forEach(t => {
+    Object.values(data).forEach(t => {
       if (t.dnf) return;
-
-      if (!melhoresPorPlayer[t.playerId]) {
-        melhoresPorPlayer[t.playerId] = t;
-      } else {
-        if (t.tempo < melhoresPorPlayer[t.playerId].tempo) {
-          melhoresPorPlayer[t.playerId] = t;
-        }
+      if (!melhores[t.playerId] || t.tempo < melhores[t.playerId].tempo) {
+        melhores[t.playerId] = t;
       }
     });
 
-    // 🔥 TRANSFORMA EM ARRAY
-    let rankingFinal = Object.values(melhoresPorPlayer)
+    Object.values(melhores)
       .sort((a, b) => a.tempo - b.tempo)
-      .slice(0, 10);
-
-    // 🔥 RENDER
-    rankingFinal.forEach((t, i) => {
-      let li = document.createElement("li");
-      li.innerText = `#${i+1} ${t.avatar || "🧊"} ${t.nome} - ${t.tempo.toFixed(2)}s`;
-      lista.appendChild(li);
-    });
+      .slice(0, 10)
+      .forEach((t, i) => {
+        let li = document.createElement("li");
+        li.innerText = `#${i+1} ${t.avatar} ${t.nome} (${getRank(t.rating)}) - ${t.tempo.toFixed(2)}s`;
+        lista.appendChild(li);
+      });
   });
 }
+
+// ================== SALAS ==================
+function criarSala() {
+  if (!db) return;
+
+  const salaRef = push(ref(db, "rooms"));
+
+  update(salaRef, {
+    host: playerData.id,
+    status: "waiting",
+    scramble: "",
+    players: {
+      [playerData.id]: {
+        nome: playerData.nome,
+        avatar: playerData.avatar,
+        tempo: null
+      }
+    }
+  });
+
+  localStorage.setItem("roomId", salaRef.key);
+  entrarSala(salaRef.key);
+
+  alert("Código da sala: " + salaRef.key);
+}
+
+function entrarSala(roomId) {
+  if (!db) return;
+
+  update(ref(db, `rooms/${roomId}/players/${playerData.id}`), {
+    nome: playerData.nome,
+    avatar: playerData.avatar,
+    tempo: null
+  });
+
+  ouvirSala(roomId);
+}
+
+function ouvirSala(roomId) {
+  onValue(ref(db, "rooms/" + roomId), async (snapshot) => {
+    const sala = snapshot.val();
+    if (!sala) return;
+
+    const players = sala.players || {};
+    const ids = Object.keys(players);
+
+    if (ids.length === 2 && sala.status === "waiting") {
+      const scramble = await randomScrambleForEvent("333");
+
+      update(ref(db, "rooms/" + roomId), {
+        status: "playing",
+        scramble: scramble
+      });
+    }
+
+    if (sala.scramble) {
+      scrambleEl.innerText = sala.scramble;
+      cubePlayer.alg = sala.scramble;
+    }
+
+    let prontos = Object.values(players).filter(p => p.tempo !== null);
+
+    if (prontos.length === 2) {
+      let vencedor = prontos.sort((a, b) => a.tempo - b.tempo)[0];
+      alert("🏆 Vencedor: " + vencedor.nome);
+    }
+  });
+}
+
+function entrarSalaInput() {
+  const roomId = document.getElementById("roomInput").value.trim();
+  if (!roomId) return alert("Digite o código da sala");
+  entrarSala(roomId);
+}
+
 // ================== INIT ==================
 novoScramble();
 renderTempos();
 atualizarStats();
 carregarRanking();
-
-
-let touchSegurando = false;
-
-// 👇 IMPORTANTE: passive: false
-const areaTimer = document.getElementById("areaTimer");
-
-areaTimer.addEventListener("touchstart", (e) => {
-  e.preventDefault();
-
-  if (running) {
-    pararTimer();
-    return;
-  }
-
-  if (!inspecionando && !segurando) {
-    iniciarInspecao();
-    return;
-  }
-
-  if (inspecionando && !segurando) {
-    segurando = true;
-    timerEl.style.color = "red";
-
-    timeoutSegurar = setTimeout(() => {
-      pronto = true;
-      timerEl.style.color = "#22c55e";
-    }, 500);
-  }
-
-}, { passive: false });
-
-areaTimer.addEventListener("touchend", (e) => {
-  e.preventDefault();
-
-  if (pronto) iniciarTimer();
-
-  segurando = false;
-  pronto = false;
-
-  clearTimeout(timeoutSegurar);
-  timerEl.style.color = "white";
-
-}, { passive: false });
