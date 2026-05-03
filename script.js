@@ -81,6 +81,50 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+// ================== MOBILE CONTROL ==================
+let segurando = false;
+let pronto = false;
+let timeoutSegurar;
+
+const area = document.getElementById("areaTimer");
+
+area.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+
+  if (running) {
+    pararTimer();
+    return;
+  }
+
+  if (!segurando) {
+    segurando = true;
+
+    timerEl.style.color = "red";
+
+    timeoutSegurar = setTimeout(() => {
+      pronto = true;
+      timerEl.style.color = "#22c55e"; // verde
+    }, 400);
+  }
+
+}, { passive: false });
+
+area.addEventListener("touchend", (e) => {
+  e.preventDefault();
+
+  if (pronto) {
+    iniciarTimer();
+  }
+
+  segurando = false;
+  pronto = false;
+
+  clearTimeout(timeoutSegurar);
+  timerEl.style.color = "white";
+
+}, { passive: false });
+
+
 // ================== GERAR CÓDIGO NUMÉRICO ==================
 async function gerarCodigo() {
   let codigo;
