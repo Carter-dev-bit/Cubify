@@ -235,22 +235,36 @@ function carregarRanking() {
 
     if (!data) return;
 
-    let valores = Object.values(data)
-      .filter(t => !t.dnf)
+    let valores = Object.values(data);
+
+    // 🔥 AGRUPAR POR PLAYER (pegar só o melhor de cada)
+    let melhoresPorPlayer = {};
+
+    valores.forEach(t => {
+      if (t.dnf) return;
+
+      if (!melhoresPorPlayer[t.playerId]) {
+        melhoresPorPlayer[t.playerId] = t;
+      } else {
+        if (t.tempo < melhoresPorPlayer[t.playerId].tempo) {
+          melhoresPorPlayer[t.playerId] = t;
+        }
+      }
+    });
+
+    // 🔥 TRANSFORMA EM ARRAY
+    let rankingFinal = Object.values(melhoresPorPlayer)
       .sort((a, b) => a.tempo - b.tempo)
       .slice(0, 10);
 
-    valores.forEach((t, i) => {
+    // 🔥 RENDER
+    rankingFinal.forEach((t, i) => {
       let li = document.createElement("li");
       li.innerText = `#${i+1} ${t.avatar || "🧊"} ${t.nome} - ${t.tempo.toFixed(2)}s`;
       lista.appendChild(li);
     });
   });
 }
-
-document.getElementById("btnPerfil").addEventListener("click", () => {
-  window.location.href = "perfil.html";
-});
 // ================== INIT ==================
 novoScramble();
 renderTempos();
