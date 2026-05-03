@@ -21,6 +21,7 @@ const timerEl = document.getElementById("timer");
 const timerOponenteEl = document.getElementById("timerOponente");
 const scrambleEl = document.getElementById("scramble");
 const statusSala = document.getElementById("statusSala");
+const area = document.getElementById("areaTimer");
 
 // ================== ESTADO ==================
 let salaAtualId = localStorage.getItem("roomId") || null;
@@ -29,6 +30,17 @@ let unsubscribeSala = null;
 let startTime;
 let interval;
 let running = false;
+
+// 🔥 INSPEÇÃO
+let inspecionando = false;
+let tempoInspecao = 15;
+let intervaloInspecao = null;
+
+// 🔥 CONTROLE
+let segurando = false;
+let pronto = false;
+let timeoutSegurar;
+let keyPressed = false;
 
 // ================== CUBO ==================
 const cubePlayer = new TwistyPlayer({
@@ -53,10 +65,14 @@ async function novoScramble() {
 
 // ================== TIMER ==================
 function iniciarTimer() {
+  clearInterval(intervaloInspecao);
+  inspecionando = false;
+
   startTime = Date.now();
   interval = setInterval(() => {
     timerEl.innerText = ((Date.now() - startTime) / 1000).toFixed(2);
   }, 10);
+
   running = true;
 }
 
@@ -73,20 +89,13 @@ function pararTimer() {
   }
 }
 
-// ================== CONTROLE UNIVERSAL ==================
-let segurando = false;
-let pronto = false;
-let timeoutSegurar;
-
-// -------- FUNÇÕES BASE --------
+// ================== INSPEÇÃO ==================
 function iniciarInspecao() {
-  if (inspecionando) return;
-
   inspecionando = true;
   tempoInspecao = 15;
 
   timerEl.innerText = tempoInspecao;
-  timerEl.style.color = "#facc15"; // amarelo
+  timerEl.style.color = "#facc15";
 
   intervaloInspecao = setInterval(() => {
     tempoInspecao--;
@@ -101,6 +110,7 @@ function iniciarInspecao() {
   }, 1000);
 }
 
+// ================== CONTROLE ==================
 function handlePressStart() {
   if (running) {
     pararTimer();
@@ -118,28 +128,28 @@ function handlePressStart() {
 
     timeoutSegurar = setTimeout(() => {
       pronto = true;
-      timerEl.style.color = "#22c55e"; // verde
+      timerEl.style.color = "#22c55e";
     }, 400);
   }
 }
 
 function handlePressEnd() {
-  if (pronto) {
-    iniciarTimer();
-  }
+  if (pronto) iniciarTimer();
 
   segurando = false;
   pronto = false;
-
   clearTimeout(timeoutSegurar);
 
-  if (!running) timerEl.style.color = "white";
+  if (!running && inspecionando) {
+    timerEl.style.color = "#facc15";
+  }
 }
 
-// -------- PC (TECLADO) --------
+// ================== PC ==================
 document.addEventListener("keydown", (e) => {
-  if (e.code === "Space") {
+  if (e.code === "Space" && !keyPressed) {
     e.preventDefault();
+    keyPressed = true;
     handlePressStart();
   }
 });
@@ -147,13 +157,12 @@ document.addEventListener("keydown", (e) => {
 document.addEventListener("keyup", (e) => {
   if (e.code === "Space") {
     e.preventDefault();
+    keyPressed = false;
     handlePressEnd();
   }
 });
 
-// -------- MOBILE (TOUCH) --------
-const area = document.getElementById("areaTimer");
-
+// ================== MOBILE ==================
 area.addEventListener("touchstart", (e) => {
   e.preventDefault();
   handlePressStart();
@@ -164,8 +173,7 @@ area.addEventListener("touchend", (e) => {
   handlePressEnd();
 }, { passive: false });
 
-
-// ================== GERAR CÓDIGO NUMÉRICO ==================
+// ================== GERAR CÓDIGO ==================
 async function gerarCodigo() {
   let codigo;
   let existe = true;
@@ -230,12 +238,11 @@ function ouvirSala(roomId) {
     const players = sala.players || {};
     const ids = Object.keys(players);
 
-    // STATUS
     if (ids.length === 1) atualizarStatus("🟡 Aguardando jogador...");
     if (ids.length === 2 && sala.status === "waiting") atualizarStatus("🔥 Jogador encontrado!");
     if (sala.status === "playing") atualizarStatus("🎮 Partida em andamento");
 
-    // 🔥 SOMENTE HOST INICIA
+    // HOST INICIA
     if (
       ids.length === 2 &&
       sala.status === "waiting" &&
@@ -250,7 +257,6 @@ function ouvirSala(roomId) {
       });
     }
 
-    // SCRAMBLE
     if (sala.scramble) {
       scrambleEl.innerText = sala.scramble;
       cubePlayer.alg = sala.scramble;
@@ -263,7 +269,7 @@ function ouvirSala(roomId) {
       timerOponenteEl.innerText = players[opponentId].tempo.toFixed(2);
     }
 
-    // RESULTADO (ANTI LOOP)
+    // RESULTADO
     const prontos = Object.values(players).filter(p => p.tempo !== null);
 
     if (
