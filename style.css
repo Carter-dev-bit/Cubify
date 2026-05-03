@@ -158,3 +158,29 @@ button:hover {
     transform: scale(0.8);
   }
 }
+
+.duel {
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+  align-items: center;
+}
+
+.playerBox {
+  background: #0f172a;
+  padding: 20px;
+  border-radius: 16px;
+  text-align: center;
+  width: 150px;
+}
+
+.playerBox p {
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+#timer, #timerOponente {
+  font-size: 40px;
+  font-weight: bold;
+}

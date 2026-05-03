@@ -2,6 +2,10 @@
 import { TwistyPlayer } from "https://cdn.cubing.net/js/cubing/twisty";
 import { randomScrambleForEvent } from "https://cdn.cubing.net/js/cubing/scramble";
 
+
+const timerOponenteEl = document.getElementById("timerOponente");
+
+
 // ================== FIREBASE ==================
 const db = window.db;
 const ref = window.ref;
@@ -265,6 +269,21 @@ function ouvirSala(roomId) {
       });
     }
   });
+
+const players = sala.players || {};
+const ids = Object.keys(players);
+
+// identifica o oponente
+const opponentId = ids.find(id => id !== playerData.id);
+
+if (opponentId && players[opponentId]) {
+  const tempoOponente = players[opponentId].tempo;
+
+  if (tempoOponente !== null) {
+    timerOponenteEl.innerText = tempoOponente.toFixed(2);
+  }
+}
+
 }
 
 // ================== PERFIL ==================
