@@ -2,9 +2,8 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0,">
-
-<title>CubeRank</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cubify</title>
 <link rel="stylesheet" href="style.css">
 </head>
 
@@ -14,46 +13,32 @@
 
   <!-- SIDEBAR -->
   <div class="sidebar">
-  <h1>Cubify ⏱️</h1>
- <button id="btnPerfil">👤 Perfil</button>
+    <h1>Cubify ⏱️</h1>
 
-  <div class="stats">
-    <p><strong>Best:</strong> <span id="best">-</span></p>
-    <p><strong>Avg 5:</strong> <span id="avg5">-</span></p>
-    <p><strong>Média:</strong> <span id="media">-</span></p>
-    <p><strong>Solves:</strong> <span id="total">0</span></p>
+    <div class="stats">
+      <p><strong>Best:</strong> <span id="best">-</span></p>
+      <p><strong>Média:</strong> <span id="media">-</span></p>
+      <p><strong>Solves:</strong> <span id="total">0</span></p>
+    </div>
+
+    <h3>Ranking</h3>
+    <ul id="ranking"></ul>
+
+    <h3>Salas</h3>
+    <button id="btnCriarSala">Criar Sala</button>
+    <input id="roomInput" placeholder="Código da sala">
+    <button id="btnEntrarSala">Entrar</button>
+
   </div>
-  
-<h3>Ranking Global</h3>
-<ul id="ranking"></ul>
 
-<div class="salas">
-<button id="btnCriarSala">Criar Sala</button>
-<button id="btnEntrarSala">Entrar</button>
-<input id="roomInput" placeholder="Código da sala">
-
-</div>
-
-  <h3>Tempos</h3>
-  <ul id="listaTempos"></ul>
-</div>
-
-  <!-- CONTEÚDO CENTRAL -->
+  <!-- CONTEÚDO -->
   <div class="content">
 
-    <div class="topo">
-      <span id="scramble">Scramble aqui</span>
-    </div>
-    
+    <div id="scramble">Scramble...</div>
 
     <div id="areaTimer">
-  <div id="timer">0.00</div>
-</div>
-
-    <div class="botoes">
-        <button onclick="reset()">Reset</button>
-        <button onclick="novoScramble()">🔀 Embaralhar</button>
-      </div>
+      <div id="timer">0.00</div>
+    </div>
 
     <div id="cubo"></div>
 
@@ -61,12 +46,12 @@
 
 </div>
 
-
+<!-- FIREBASE -->
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, push, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
- const firebaseConfig = {
+const firebaseConfig = {
   apiKey: "AIzaSyBnK5Orp5iX2wZjnNVxOmvqfNowVL_KgdU",
   authDomain: "cubify-6c737.firebaseapp.com",
   databaseURL: "https://cubify-6c737-default-rtdb.firebaseio.com",
@@ -77,21 +62,16 @@
   measurementId: "G-YSV3X8VY4B"
 };
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-  window.db = db;
-  window.ref = ref;
-  window.push = push;
-  window.onValue = onValue;
-
-  
+// 🔥 expõe tudo corretamente
+window.db = db;
+window.ref = ref;
+window.push = push;
+window.onValue = onValue;
+window.update = update;
 </script>
-
-<div id="rotate-warning">
-  <h2>🔄 Gire o celular</h2>
-  <p>Use no modo horizontal para melhor experiência</p>
-</div>
 
 <script type="module" src="script.js"></script>
 
