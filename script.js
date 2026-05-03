@@ -21,6 +21,8 @@ localStorage.setItem("player", JSON.stringify(playerData));
 // ================== ELEMENTOS ==================
 const timerEl = document.getElementById("timer");
 const scrambleEl = document.getElementById("scramble");
+const statusSala = document.getElementById("statusSala");
+const area = document.getElementById("areaTimer");
 
 // ================== CUBO ==================
 const cubePlayer = new TwistyPlayer({
@@ -29,23 +31,56 @@ const cubePlayer = new TwistyPlayer({
 });
 document.getElementById("cubo").appendChild(cubePlayer);
 
-// ================== TIMER ==================
+// ================== ESTADO ==================
 let startTime;
 let interval;
 let running = false;
 
+let inspecionando = false;
+let tempoInspecao = 15;
+let intervaloInspecao;
+
+let segurando = false;
+let pronto = false;
+let timeoutSegurar;
+
+// ================== SCRAMBLE ==================
 async function novoScramble() {
   const scramble = await randomScrambleForEvent("333");
+
   scrambleEl.innerText = scramble;
   cubePlayer.alg = scramble;
 }
 
+// ================== INSPEÇÃO ==================
+function iniciarInspecao() {
+  inspecionando = true;
+  tempoInspecao = 15;
+
+  timerEl.innerText = tempoInspecao;
+
+  intervaloInspecao = setInterval(() => {
+    tempoInspecao--;
+    timerEl.innerText = tempoInspecao;
+
+    if (tempoInspecao <= -2) {
+      timerEl.innerText = "DNF";
+      clearInterval(intervaloInspecao);
+    }
+  }, 1000);
+}
+
+// ================== TIMER ==================
 function iniciarTimer() {
+  clearInterval(intervaloInspecao);
+  inspecionando = false;
+
   startTime = Date.now();
   interval = setInterval(() => {
     let tempo = Date.now() - startTime;
     timerEl.innerText = (tempo / 1000).toFixed(2);
   }, 10);
+
   running = true;
 }
 
@@ -55,7 +90,6 @@ function pararTimer() {
 
   const tempo = parseFloat(timerEl.innerText);
 
-  // salva no firebase
   const roomId = localStorage.getItem("roomId");
 
   if (roomId && db) {
@@ -67,18 +101,69 @@ function pararTimer() {
   novoScramble();
 }
 
-// ================== CLICK / TOUCH ==================
-const area = document.getElementById("areaTimer");
+// ================== CONTROLE PC ==================
+document.addEventListener("keydown", (e) => {
+  if (e.code === "Space") {
+    e.preventDefault();
 
-area.addEventListener("click", () => {
-  if (!running) iniciarTimer();
-  else pararTimer();
+    if (running) return pararTimer();
+
+    if (!inspecionando && !segurando) {
+      iniciarInspecao();
+      return;
+    }
+
+    if (inspecionando && !segurando) {
+      segurando = true;
+
+      timeoutSegurar = setTimeout(() => {
+        pronto = true;
+      }, 400);
+    }
+  }
 });
+
+document.addEventListener("keyup", (e) => {
+  if (e.code === "Space") {
+    e.preventDefault();
+
+    if (pronto) iniciarTimer();
+
+    segurando = false;
+    pronto = false;
+
+    clearTimeout(timeoutSegurar);
+  }
+});
+
+// ================== MOBILE ==================
+let touchStart = 0;
 
 area.addEventListener("touchstart", (e) => {
   e.preventDefault();
-  if (!running) iniciarTimer();
-  else pararTimer();
+
+  if (running) {
+    pararTimer();
+    return;
+  }
+
+  touchStart = Date.now();
+
+  if (!inspecionando) {
+    iniciarInspecao();
+  }
+
+}, { passive: false });
+
+area.addEventListener("touchend", (e) => {
+  e.preventDefault();
+
+  let tempoPressionado = Date.now() - touchStart;
+
+  if (inspecionando && tempoPressionado > 400) {
+    iniciarTimer();
+  }
+
 }, { passive: false });
 
 // ================== SALAS ==================
@@ -116,14 +201,13 @@ function entrarSala() {
 
   localStorage.setItem("roomId", roomId);
 
-  document.getElementById("statusSala").innerText = "🟡 Entrando na sala...";
+  statusSala.innerText = "🟡 Entrando na sala...";
 
   ouvirSala(roomId);
 }
 
 function ouvirSala(roomId) {
 
-  document.getElementById("statusSala").innerText = "🟢 Conectado na sala";
   onValue(ref(db, "rooms/" + roomId), async (snap) => {
     const sala = snap.val();
     if (!sala) return;
@@ -131,18 +215,20 @@ function ouvirSala(roomId) {
     const players = sala.players || {};
     const ids = Object.keys(players);
 
-if (ids.length === 1) {
-  document.getElementById("statusSala").innerText = "🟡 Aguardando jogador...";
-}
+    // STATUS
+    if (ids.length === 1) {
+      statusSala.innerText = "🟡 Aguardando jogador...";
+    }
 
-if (ids.length === 2 && sala.status === "waiting") {
-  document.getElementById("statusSala").innerText = "🔥 Jogador encontrado!";
-}
+    if (ids.length === 2 && sala.status === "waiting") {
+      statusSala.innerText = "🔥 Jogador encontrado!";
+    }
 
-if (sala.status === "playing") {
-  document.getElementById("statusSala").innerText = "🎮 Partida em andamento";
-}
-    // iniciar partida
+    if (sala.status === "playing") {
+      statusSala.innerText = "🎮 Partida em andamento";
+    }
+
+    // INICIAR PARTIDA
     if (ids.length === 2 && sala.status === "waiting") {
       const scramble = await randomScrambleForEvent("333");
 
@@ -152,25 +238,43 @@ if (sala.status === "playing") {
       });
     }
 
-    // atualizar scramble
-    if (sala.scramble) {
+    // SCRAMBLE (só quando jogando)
+    if (sala.status === "playing" && sala.scramble) {
       scrambleEl.innerText = sala.scramble;
       cubePlayer.alg = sala.scramble;
     }
 
-    // resultado
+    // RESULTADO (corrigido)
     const prontos = Object.values(players).filter(p => p.tempo !== null);
 
-    if (prontos.length === 2) {
-      const vencedor = prontos.sort((a, b) => a.tempo - b.tempo)[0];
+    if (prontos.length === 2 && sala.status === "playing") {
+      let vencedor = prontos.sort((a, b) => a.tempo - b.tempo)[0];
+
       alert("🏆 " + vencedor.nome + " venceu!");
+
+      // reset sala
+      update(ref(db, "rooms/" + roomId), {
+        status: "waiting",
+        scramble: ""
+      });
+
+      Object.keys(players).forEach(id => {
+        update(ref(db, `rooms/${roomId}/players/${id}`), {
+          tempo: null
+        });
+      });
     }
   });
 }
 
+// ================== PERFIL ==================
+document.getElementById("btnPerfil")?.addEventListener("click", () => {
+  alert("Perfil em construção 🚧");
+});
+
 // ================== BOTÕES ==================
-document.getElementById("btnCriarSala").addEventListener("click", criarSala);
-document.getElementById("btnEntrarSala").addEventListener("click", entrarSala);
+document.getElementById("btnCriarSala")?.addEventListener("click", criarSala);
+document.getElementById("btnEntrarSala")?.addEventListener("click", entrarSala);
 
 // ================== INIT ==================
 novoScramble();
