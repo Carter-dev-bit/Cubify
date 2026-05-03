@@ -270,21 +270,37 @@ function ouvirSala(roomId) {
     }
 
     // RESULTADO
-    const prontos = Object.values(players).filter(p => p.tempo !== null);
+    const jogadores = Object.values(players);
 
-    if (
-      prontos.length === 2 &&
-      sala.status === "playing" &&
-      !sala.finished
-    ) {
-      const vencedor = prontos.sort((a, b) => a.tempo - b.tempo)[0];
+// só continua se os dois jogaram
+if (
+  jogadores.length === 2 &&
+  jogadores.every(p => p.tempo !== null) &&
+  sala.status === "playing" &&
+  !sala.finished
+) {
+  let [p1, p2] = jogadores;
 
-      update(ref(db, "rooms/" + roomId), {
-        finished: true
-      });
+  let vencedor = null;
 
-      alert("🏆 " + vencedor.nome + " venceu!");
-    }
+  // DNF (tempo inválido)
+  if (isNaN(p1.tempo)) vencedor = p2;
+  else if (isNaN(p2.tempo)) vencedor = p1;
+  else if (p1.tempo < p2.tempo) vencedor = p1;
+  else if (p2.tempo < p1.tempo) vencedor = p2;
+  else vencedor = null; // empate
+
+  // trava resultado (evita loop infinito)
+  update(ref(db, "rooms/" + roomId), {
+    finished: true
+  });
+
+  if (vencedor) {
+    alert("🏆 " + vencedor.nome + " venceu!");
+  } else {
+    alert("🤝 Empate!");
+  }
+}
   });
 }
 
