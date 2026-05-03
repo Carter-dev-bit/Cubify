@@ -115,10 +115,15 @@ function entrarSala() {
   });
 
   localStorage.setItem("roomId", roomId);
+
+  document.getElementById("statusSala").innerText = "🟡 Entrando na sala...";
+
   ouvirSala(roomId);
 }
 
 function ouvirSala(roomId) {
+
+  document.getElementById("statusSala").innerText = "🟢 Conectado na sala";
   onValue(ref(db, "rooms/" + roomId), async (snap) => {
     const sala = snap.val();
     if (!sala) return;
@@ -126,6 +131,17 @@ function ouvirSala(roomId) {
     const players = sala.players || {};
     const ids = Object.keys(players);
 
+if (ids.length === 1) {
+  document.getElementById("statusSala").innerText = "🟡 Aguardando jogador...";
+}
+
+if (ids.length === 2 && sala.status === "waiting") {
+  document.getElementById("statusSala").innerText = "🔥 Jogador encontrado!";
+}
+
+if (sala.status === "playing") {
+  document.getElementById("statusSala").innerText = "🎮 Partida em andamento";
+}
     // iniciar partida
     if (ids.length === 2 && sala.status === "waiting") {
       const scramble = await randomScrambleForEvent("333");
