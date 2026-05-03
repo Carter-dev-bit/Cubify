@@ -1,17 +1,12 @@
 // ================== IMPORTS ==================
 import { TwistyPlayer } from "https://cdn.cubing.net/js/cubing/twisty";
 import { randomScrambleForEvent } from "https://cdn.cubing.net/js/cubing/scramble";
-
-
-const timerOponenteEl = document.getElementById("timerOponente");
-
+import { update, get, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 // ================== FIREBASE ==================
 const db = window.db;
 const ref = window.ref;
-const push = window.push;
 const onValue = window.onValue;
-const update = window.update;
 
 // ================== PLAYER ==================
 let playerData = JSON.parse(localStorage.getItem("player")) || {
@@ -24,18 +19,15 @@ localStorage.setItem("player", JSON.stringify(playerData));
 
 // ================== ELEMENTOS ==================
 const timerEl = document.getElementById("timer");
+const timerOponenteEl = document.getElementById("timerOponente");
 const scrambleEl = document.getElementById("scramble");
 const statusSala = document.getElementById("statusSala");
 const area = document.getElementById("areaTimer");
 
-// ================== CUBO ==================
-const cubePlayer = new TwistyPlayer({
-  puzzle: "3x3x3",
-  alg: ""
-});
-document.getElementById("cubo").appendChild(cubePlayer);
-
 // ================== ESTADO ==================
+let salaAtualId = localStorage.getItem("roomId") || null;
+let unsubscribeSala = null;
+
 let startTime;
 let interval;
 let running = false;
@@ -44,34 +36,27 @@ let inspecionando = false;
 let tempoInspecao = 15;
 let intervaloInspecao;
 
-let segurando = false;
-let pronto = false;
-let timeoutSegurar;
+// ================== CUBO ==================
+const cubePlayer = new TwistyPlayer({
+  puzzle: "3x3x3",
+  alg: ""
+});
+document.getElementById("cubo").appendChild(cubePlayer);
+
+// ================== STATUS UI ==================
+function atualizarStatus(texto) {
+  if (!salaAtualId) {
+    statusSala.innerText = texto;
+  } else {
+    statusSala.innerText = `Sala: ${salaAtualId} | ${texto}`;
+  }
+}
 
 // ================== SCRAMBLE ==================
 async function novoScramble() {
   const scramble = await randomScrambleForEvent("333");
-
   scrambleEl.innerText = scramble;
   cubePlayer.alg = scramble;
-}
-
-// ================== INSPEÇÃO ==================
-function iniciarInspecao() {
-  inspecionando = true;
-  tempoInspecao = 15;
-
-  timerEl.innerText = tempoInspecao;
-
-  intervaloInspecao = setInterval(() => {
-    tempoInspecao--;
-    timerEl.innerText = tempoInspecao;
-
-    if (tempoInspecao <= -2) {
-      timerEl.innerText = "DNF";
-      clearInterval(intervaloInspecao);
-    }
-  }, 1000);
 }
 
 // ================== TIMER ==================
@@ -94,89 +79,60 @@ function pararTimer() {
 
   const tempo = parseFloat(timerEl.innerText);
 
-  const roomId = localStorage.getItem("roomId");
-
-  if (roomId && db) {
-    update(ref(db, `rooms/${roomId}/players/${playerData.id}`), {
+  if (salaAtualId && db) {
+    update(ref(db, `rooms/${salaAtualId}/players/${playerData.id}`), {
       tempo: tempo
     });
   }
-
-  novoScramble();
 }
 
-// ================== CONTROLE PC ==================
+// ================== CONTROLES ==================
 document.addEventListener("keydown", (e) => {
   if (e.code === "Space") {
     e.preventDefault();
 
     if (running) return pararTimer();
 
-    if (!inspecionando && !segurando) {
-      iniciarInspecao();
+    if (!inspecionando) {
+      inspecionando = true;
+      tempoInspecao = 15;
+
+      intervaloInspecao = setInterval(() => {
+        tempoInspecao--;
+        timerEl.innerText = tempoInspecao;
+
+        if (tempoInspecao <= -2) {
+          timerEl.innerText = "DNF";
+          clearInterval(intervaloInspecao);
+        }
+      }, 1000);
+
       return;
     }
 
-    if (inspecionando && !segurando) {
-      segurando = true;
-
-      timeoutSegurar = setTimeout(() => {
-        pronto = true;
-      }, 400);
-    }
-  }
-});
-
-document.addEventListener("keyup", (e) => {
-  if (e.code === "Space") {
-    e.preventDefault();
-
-    if (pronto) iniciarTimer();
-
-    segurando = false;
-    pronto = false;
-
-    clearTimeout(timeoutSegurar);
-  }
-});
-
-// ================== MOBILE ==================
-let touchStart = 0;
-
-area.addEventListener("touchstart", (e) => {
-  e.preventDefault();
-
-  if (running) {
-    pararTimer();
-    return;
-  }
-
-  touchStart = Date.now();
-
-  if (!inspecionando) {
-    iniciarInspecao();
-  }
-
-}, { passive: false });
-
-area.addEventListener("touchend", (e) => {
-  e.preventDefault();
-
-  let tempoPressionado = Date.now() - touchStart;
-
-  if (inspecionando && tempoPressionado > 400) {
     iniciarTimer();
   }
+});
 
-}, { passive: false });
+// ================== GERAR CÓDIGO ==================
+async function gerarCodigoUnico() {
+  let codigo;
+  let existe = true;
+
+  while (existe) {
+    codigo = Math.floor(100000 + Math.random() * 900000).toString();
+    const snap = await get(ref(db, "rooms/" + codigo));
+    existe = snap.exists();
+  }
+
+  return codigo;
+}
 
 // ================== SALAS ==================
-function criarSala() {
-  if (!db) return alert("Firebase não conectado");
+async function criarSala() {
+  const roomId = await gerarCodigoUnico();
 
-  const salaRef = push(ref(db, "rooms"));
-
-  update(salaRef, {
+  await update(ref(db, "rooms/" + roomId), {
     host: playerData.id,
     status: "waiting",
     scramble: "",
@@ -188,10 +144,11 @@ function criarSala() {
     }
   });
 
-  localStorage.setItem("roomId", salaRef.key);
-  ouvirSala(salaRef.key);
+  salaAtualId = roomId;
+  localStorage.setItem("roomId", roomId);
 
-  alert("Código da sala: " + salaRef.key);
+  ouvirSala(roomId);
+  atualizarStatus("🟡 Aguardando jogador...");
 }
 
 function entrarSala() {
@@ -203,36 +160,57 @@ function entrarSala() {
     tempo: null
   });
 
+  salaAtualId = roomId;
   localStorage.setItem("roomId", roomId);
 
-  statusSala.innerText = "🟡 Entrando na sala...";
-
   ouvirSala(roomId);
+  atualizarStatus("🟡 Entrando...");
 }
 
+function sairSala() {
+  if (!salaAtualId) return;
+
+  remove(ref(db, `rooms/${salaAtualId}/players/${playerData.id}`));
+
+  salaAtualId = null;
+  localStorage.removeItem("roomId");
+
+  atualizarStatus("❌ Saiu da sala");
+}
+
+// ================== COPIAR ==================
+function copiarCodigo() {
+  if (!salaAtualId) return;
+
+  navigator.clipboard.writeText(salaAtualId);
+  alert("Código copiado!");
+}
+
+// ================== OUVIR SALA ==================
 function ouvirSala(roomId) {
 
-  onValue(ref(db, "rooms/" + roomId), async (snap) => {
+  if (unsubscribeSala) unsubscribeSala();
+
+  unsubscribeSala = onValue(ref(db, "rooms/" + roomId), async (snap) => {
     const sala = snap.val();
     if (!sala) return;
 
     const players = sala.players || {};
     const ids = Object.keys(players);
 
-    // STATUS
     if (ids.length === 1) {
-      statusSala.innerText = "🟡 Aguardando jogador...";
+      atualizarStatus("🟡 Aguardando jogador...");
     }
 
     if (ids.length === 2 && sala.status === "waiting") {
-      statusSala.innerText = "🔥 Jogador encontrado!";
+      atualizarStatus("🔥 Jogador encontrado!");
     }
 
     if (sala.status === "playing") {
-      statusSala.innerText = "🎮 Partida em andamento";
+      atualizarStatus("🎮 Partida em andamento");
     }
 
-    // INICIAR PARTIDA
+    // iniciar partida
     if (ids.length === 2 && sala.status === "waiting") {
       const scramble = await randomScrambleForEvent("333");
 
@@ -242,21 +220,30 @@ function ouvirSala(roomId) {
       });
     }
 
-    // SCRAMBLE (só quando jogando)
-    if (sala.status === "playing" && sala.scramble) {
+    // scramble
+    if (sala.scramble) {
       scrambleEl.innerText = sala.scramble;
       cubePlayer.alg = sala.scramble;
     }
 
-    // RESULTADO (corrigido)
+    // oponente
+    const opponentId = ids.find(id => id !== playerData.id);
+
+    if (opponentId && players[opponentId]) {
+      const tempoOponente = players[opponentId].tempo;
+      if (tempoOponente !== null) {
+        timerOponenteEl.innerText = tempoOponente.toFixed(2);
+      }
+    }
+
+    // resultado
     const prontos = Object.values(players).filter(p => p.tempo !== null);
 
     if (prontos.length === 2 && sala.status === "playing") {
-      let vencedor = prontos.sort((a, b) => a.tempo - b.tempo)[0];
+      const vencedor = prontos.sort((a, b) => a.tempo - b.tempo)[0];
 
-      alert("🏆 " + vencedor.nome + " venceu!");
+      atualizarStatus("🏆 " + vencedor.nome + " venceu!");
 
-      // reset sala
       update(ref(db, "rooms/" + roomId), {
         status: "waiting",
         scramble: ""
@@ -267,33 +254,26 @@ function ouvirSala(roomId) {
           tempo: null
         });
       });
+
+      timerEl.innerText = "0.00";
+      timerOponenteEl.innerText = "0.00";
     }
   });
-
-const players = sala.players || {};
-const ids = Object.keys(players);
-
-// identifica o oponente
-const opponentId = ids.find(id => id !== playerData.id);
-
-if (opponentId && players[opponentId]) {
-  const tempoOponente = players[opponentId].tempo;
-
-  if (tempoOponente !== null) {
-    timerOponenteEl.innerText = tempoOponente.toFixed(2);
-  }
 }
 
+// ================== RECONEXÃO ==================
+if (salaAtualId) {
+  ouvirSala(salaAtualId);
+  atualizarStatus("🔄 Reconectado à sala");
 }
-
-// ================== PERFIL ==================
-document.getElementById("btnPerfil")?.addEventListener("click", () => {
-  alert("Perfil em construção 🚧");
-});
 
 // ================== BOTÕES ==================
 document.getElementById("btnCriarSala")?.addEventListener("click", criarSala);
 document.getElementById("btnEntrarSala")?.addEventListener("click", entrarSala);
+
+// NOVOS BOTÕES (cria no HTML)
+document.getElementById("btnSairSala")?.addEventListener("click", sairSala);
+document.getElementById("btnCopiarSala")?.addEventListener("click", copiarCodigo);
 
 // ================== INIT ==================
 novoScramble();
