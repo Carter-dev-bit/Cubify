@@ -73,32 +73,47 @@ function pararTimer() {
   }
 }
 
-// ================== CONTROLE ==================
-document.addEventListener("keydown", (e) => {
-  if (e.code === "Space") {
-    e.preventDefault();
-    running ? pararTimer() : iniciarTimer();
-  }
-});
-
-// ================== MOBILE CONTROL ==================
+// ================== CONTROLE UNIVERSAL ==================
 let segurando = false;
 let pronto = false;
 let timeoutSegurar;
 
-const area = document.getElementById("areaTimer");
+// -------- FUNÇÕES BASE --------
+function iniciarInspecao() {
+  if (inspecionando) return;
 
-area.addEventListener("touchstart", (e) => {
-  e.preventDefault();
+  inspecionando = true;
+  tempoInspecao = 15;
 
+  timerEl.innerText = tempoInspecao;
+  timerEl.style.color = "#facc15"; // amarelo
+
+  intervaloInspecao = setInterval(() => {
+    tempoInspecao--;
+    timerEl.innerText = tempoInspecao;
+
+    if (tempoInspecao <= 0) timerEl.style.color = "red";
+
+    if (tempoInspecao <= -2) {
+      timerEl.innerText = "DNF";
+      clearInterval(intervaloInspecao);
+    }
+  }, 1000);
+}
+
+function handlePressStart() {
   if (running) {
     pararTimer();
     return;
   }
 
+  if (!inspecionando) {
+    iniciarInspecao();
+    return;
+  }
+
   if (!segurando) {
     segurando = true;
-
     timerEl.style.color = "red";
 
     timeoutSegurar = setTimeout(() => {
@@ -106,12 +121,9 @@ area.addEventListener("touchstart", (e) => {
       timerEl.style.color = "#22c55e"; // verde
     }, 400);
   }
+}
 
-}, { passive: false });
-
-area.addEventListener("touchend", (e) => {
-  e.preventDefault();
-
+function handlePressEnd() {
   if (pronto) {
     iniciarTimer();
   }
@@ -120,8 +132,36 @@ area.addEventListener("touchend", (e) => {
   pronto = false;
 
   clearTimeout(timeoutSegurar);
-  timerEl.style.color = "white";
 
+  if (!running) timerEl.style.color = "white";
+}
+
+// -------- PC (TECLADO) --------
+document.addEventListener("keydown", (e) => {
+  if (e.code === "Space") {
+    e.preventDefault();
+    handlePressStart();
+  }
+});
+
+document.addEventListener("keyup", (e) => {
+  if (e.code === "Space") {
+    e.preventDefault();
+    handlePressEnd();
+  }
+});
+
+// -------- MOBILE (TOUCH) --------
+const area = document.getElementById("areaTimer");
+
+area.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  handlePressStart();
+}, { passive: false });
+
+area.addEventListener("touchend", (e) => {
+  e.preventDefault();
+  handlePressEnd();
 }, { passive: false });
 
 
