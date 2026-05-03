@@ -158,7 +158,7 @@ function pararTimer() {
   renderTempos();
   atualizarStats();
 
-  // 🔥 SALA (1v1)
+  // SALA 1v1
   const roomId = localStorage.getItem("roomId");
   if (roomId && db) {
     update(ref(db, `rooms/${roomId}/players/${playerData.id}`), {
@@ -166,7 +166,7 @@ function pararTimer() {
     });
   }
 
-  // 🔥 FIREBASE GLOBAL
+  // FIREBASE GLOBAL
   if (db) {
     push(ref(db, "ranking"), {
       playerId: playerData.id,
@@ -185,6 +185,35 @@ function pararTimer() {
 function updateTimer() {
   let tempo = Date.now() - startTime;
   timerEl.innerText = (tempo / 1000).toFixed(2);
+}
+
+// ================== RESET ==================
+function reset() {
+  clearInterval(interval);
+  clearInterval(intervaloInspecao);
+
+  running = false;
+  inspecionando = false;
+
+  timerEl.innerText = "0.00";
+}
+
+// ================== LISTA ==================
+function renderTempos() {
+  const lista = document.getElementById("listaTempos");
+  if (!lista) return;
+
+  lista.innerHTML = "";
+
+  tempos.forEach(t => {
+    const li = document.createElement("li");
+
+    if (t.dnf) li.innerText = "DNF";
+    else if (t.penalty === 2) li.innerText = t.tempo.toFixed(2) + " +2";
+    else li.innerText = t.tempo.toFixed(2);
+
+    lista.appendChild(li);
+  });
 }
 
 // ================== STATS ==================
@@ -327,3 +356,16 @@ novoScramble();
 renderTempos();
 atualizarStats();
 carregarRanking();
+
+// ================== BOTÕES ==================
+const btnCriar = document.getElementById("btnCriarSala");
+const btnEntrar = document.getElementById("btnEntrarSala");
+
+if (btnCriar) btnCriar.addEventListener("click", criarSala);
+if (btnEntrar) btnEntrar.addEventListener("click", entrarSalaInput);
+
+// ================== GLOBAL ==================
+window.criarSala = criarSala;
+window.entrarSalaInput = entrarSalaInput;
+window.novoScramble = novoScramble;
+window.reset = reset;
