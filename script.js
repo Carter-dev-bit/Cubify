@@ -16,7 +16,7 @@ let playerData = JSON.parse(localStorage.getItem("player")) || {
 
 localStorage.setItem("player", JSON.stringify(playerData));
 
-// ================== 🔥 TEMPOS (NOVO) ==================
+// ================== TEMPOS ==================
 let tempos = JSON.parse(localStorage.getItem("tempos")) || [];
 
 // ================== ELEMENTOS ==================
@@ -28,8 +28,6 @@ const area = document.getElementById("areaTimer");
 
 // ================== ESTADO ==================
 let salaAtualId = localStorage.getItem("roomId") || null;
-let unsubscribeSala = null;
-
 let startTime;
 let interval;
 let running = false;
@@ -96,7 +94,14 @@ function pararTimer() {
   clearInterval(interval);
   running = false;
 
-  const tempo = parseFloat(timerEl.innerText);
+  // 🔥 CORREÇÃO DO RANK (ESSENCIAL)
+  let tempo = timerEl.innerText;
+
+  if (tempo === "DNF") {
+    tempo = NaN;
+  } else {
+    tempo = parseFloat(tempo);
+  }
 
   if (salaAtualId) {
     update(ref(db, `rooms/${salaAtualId}/players/${playerData.id}`), {
@@ -105,15 +110,20 @@ function pararTimer() {
     });
   }
 
-  // 🔥 SALVAR LOCAL (NOVO)
+  // 🔥 SCRAMBLE SOLO (CORRIGIDO)
+  if (!salaAtualId) {
+    novoScramble();
+  }
+
+  // salvar local
   if (!isNaN(tempo)) {
     tempos.push(tempo);
     localStorage.setItem("tempos", JSON.stringify(tempos));
     atualizarStats();
   }
 
-  // ranking
-  if (db && !isNaN(tempo)) {
+  // 🔥 RANKING (CORRIGIDO)
+  if (db && !isNaN(tempo) && tempo >= 2) {
     const playerRef = ref(db, "ranking/" + playerData.id);
 
     get(playerRef).then((snap) => {
@@ -214,7 +224,7 @@ area.addEventListener("touchend", (e) => {
   handlePressEnd();
 }, { passive: false });
 
-// ================== 🔥 OUVIR SALA ==================
+// ================== OUVIR SALA (LIVE) ==================
 if (salaAtualId) {
   onValue(ref(db, "rooms/" + salaAtualId), (snap) => {
     const sala = snap.val();
@@ -265,13 +275,11 @@ function carregarRanking() {
   });
 }
 
-// ================== 🔥 STATS (NOVO) ==================
+// ================== STATS ==================
 function atualizarStats() {
   if (!tempos.length) return;
 
-  // 🔥 remove valores inválidos
   const validos = tempos.filter(t => typeof t === "number" && !isNaN(t));
-
   if (!validos.length) return;
 
   const best = Math.min(...validos);
