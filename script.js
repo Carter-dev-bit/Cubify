@@ -224,9 +224,9 @@ area.addEventListener("touchend", (e) => {
   handlePressEnd();
 }, { passive: false });
 
-// ================== OUVIR SALA (LIVE) ==================
+// ================== OUVIR SALA (COM SISTEMA DE JOGO) ==================
 if (salaAtualId) {
-  onValue(ref(db, "rooms/" + salaAtualId), (snap) => {
+  onValue(ref(db, "rooms/" + salaAtualId), async (snap) => {
     const sala = snap.val();
     if (!sala) return;
 
@@ -235,14 +235,117 @@ if (salaAtualId) {
 
     const opponentId = ids.find(id => id !== playerData.id);
 
+    // ================== TEMPO AO VIVO ==================
     if (opponentId && players[opponentId]) {
       const op = players[opponentId];
 
-      if (op.tempoLive !== null && op.tempoLive !== undefined) {
+      if (op.tempoLive != null) {
         timerOponenteEl.innerText = op.tempoLive.toFixed(2);
-      } else if (op.tempo !== null) {
+      } else if (op.tempo != null) {
         timerOponenteEl.innerText = op.tempo.toFixed(2);
       }
+    }
+
+    // ================== INICIAR PARTIDA ==================
+    if (
+      ids.length === 2 &&
+      sala.status === "waiting" &&
+      sala.host === playerData.id
+    ) {
+      const scramble = await randomScrambleForEvent("333");
+
+      update(ref(db, "rooms/" + salaAtualId), {
+        status: "playing",
+        scramble,
+        finished: false,
+        round: (sala.round || 0) + 1,
+        score: sala.score || {}
+      });
+    }
+
+    // ================== SCRAMBLE ==================
+    if (sala.scramble) {
+      scrambleEl.innerText = sala.scramble;
+      cubePlayer.alg = sala.scramble;
+    }
+
+    // ================== RESULTADO ==================
+    const jogadores = Object.entries(players);
+
+    if (
+      jogadores.length === 2 &&
+      jogadores.every(([_, p]) => p.tempo !== null) &&
+      sala.status === "playing" &&
+      !sala.finished
+    ) {
+      let [[id1, p1], [id2, p2]] = jogadores;
+
+      let vencedorId = null;
+
+      if (isNaN(p1.tempo)) vencedorId = id2;
+      else if (isNaN(p2.tempo)) vencedorId = id1;
+      else if (p1.tempo < p2.tempo) vencedorId = id1;
+      else if (p2.tempo < p1.tempo) vencedorId = id2;
+
+      await update(ref(db, "rooms/" + salaAtualId), {
+        finished: true
+      });
+
+      // ================== SCORE ==================
+      let novoScore = sala.score || {};
+
+      if (vencedorId) {
+        novoScore[vencedorId] = (novoScore[vencedorId] || 0) + 1;
+      }
+
+      // evita loop de alert
+      if (!window.jaMostrouResultado) {
+        window.jaMostrouResultado = true;
+
+        if (vencedorId) {
+          alert("🏆 " + players[vencedorId].nome + " venceu o round!");
+        } else {
+          alert("🤝 Empate!");
+        }
+      }
+
+      // ================== PRÓXIMO ROUND ==================
+      setTimeout(async () => {
+        if (sala.host !== playerData.id) return;
+
+        const novoScramble = await randomScrambleForEvent("333");
+
+        let novosPlayers = {};
+        Object.keys(players).forEach(id => {
+          novosPlayers[id] = {
+            nome: players[id].nome,
+            tempo: null,
+            tempoLive: null
+          };
+        });
+
+        await update(ref(db, "rooms/" + salaAtualId), {
+          scramble: novoScramble,
+          players: novosPlayers,
+          finished: false,
+          score: novoScore,
+          round: (sala.round || 1) + 1
+        });
+
+        window.jaMostrouResultado = false;
+
+      }, 3000);
+    }
+
+    // ================== PLACAR ==================
+    const score = sala.score || {};
+
+    const meu = score[playerData.id] || 0;
+    const op = score[opponentId] || 0;
+
+    const placarEl = document.getElementById("placar");
+    if (placarEl) {
+      placarEl.innerText = `${meu} x ${op}`;
     }
   });
 }
