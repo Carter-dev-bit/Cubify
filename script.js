@@ -16,6 +16,9 @@ let playerData = JSON.parse(localStorage.getItem("player")) || {
 
 localStorage.setItem("player", JSON.stringify(playerData));
 
+// ================== 🔥 TEMPOS (NOVO) ==================
+let tempos = JSON.parse(localStorage.getItem("tempos")) || [];
+
 // ================== ELEMENTOS ==================
 const timerEl = document.getElementById("timer");
 const timerOponenteEl = document.getElementById("timerOponente");
@@ -70,7 +73,6 @@ function iniciarTimer() {
 
   startTime = Date.now();
 
-  // 🔥 envia início
   if (salaAtualId) {
     update(ref(db, `rooms/${salaAtualId}/players/${playerData.id}`), {
       tempoLive: 0
@@ -101,6 +103,13 @@ function pararTimer() {
       tempo,
       tempoLive: null
     });
+  }
+
+  // 🔥 SALVAR LOCAL (NOVO)
+  if (!isNaN(tempo)) {
+    tempos.push(tempo);
+    localStorage.setItem("tempos", JSON.stringify(tempos));
+    atualizarStats();
   }
 
   // ranking
@@ -205,7 +214,7 @@ area.addEventListener("touchend", (e) => {
   handlePressEnd();
 }, { passive: false });
 
-// ================== 🔥 OUVIR SALA (NOVO - AO VIVO) ==================
+// ================== 🔥 OUVIR SALA ==================
 if (salaAtualId) {
   onValue(ref(db, "rooms/" + salaAtualId), (snap) => {
     const sala = snap.val();
@@ -256,9 +265,27 @@ function carregarRanking() {
   });
 }
 
+// ================== 🔥 STATS (NOVO) ==================
+function atualizarStats() {
+  if (!tempos.length) return;
+
+  // 🔥 remove valores inválidos
+  const validos = tempos.filter(t => typeof t === "number" && !isNaN(t));
+
+  if (!validos.length) return;
+
+  const best = Math.min(...validos);
+  const media = validos.reduce((a, b) => a + b, 0) / validos.length;
+
+  document.getElementById("best").innerText = best.toFixed(2) + "s";
+  document.getElementById("media").innerText = media.toFixed(2) + "s";
+  document.getElementById("total").innerText = validos.length;
+}
+
 // ================== INIT ==================
 novoScramble();
 carregarRanking();
+atualizarStats();
 
 // ================== LIVE ==================
 function enviarTempoLive() {
