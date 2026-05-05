@@ -264,10 +264,14 @@ if (salaAtualId) {
     }
 
     // ================== SCRAMBLE ==================
-    if (sala.scramble) {
-      scrambleEl.innerText = sala.scramble;
-      cubePlayer.alg = sala.scramble;
-    }
+  if (sala.scramble) {
+  scrambleEl.innerText = sala.scramble;
+
+  // 🔥 CORREÇÃO MOBILE
+  setTimeout(() => {
+    cubePlayer.alg = sala.scramble;
+  }, 50);
+}
 
     // ================== RESULTADO ==================
     const jogadores = Object.entries(players);
@@ -394,7 +398,9 @@ function atualizarStats() {
 }
 
 // ================== INIT ==================
-novoScramble();
+if (!salaAtualId) {
+  novoScramble();
+}
 carregarRanking();
 atualizarStats();
 
