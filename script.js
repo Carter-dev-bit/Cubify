@@ -31,12 +31,12 @@ let startTime;
 let interval;
 let running = false;
 
-// 🔥 INSPEÇÃO
+// INSPEÇÃO
 let inspecionando = false;
 let tempoInspecao = 15;
 let intervaloInspecao = null;
 
-// 🔥 CONTROLE
+// CONTROLE
 let segurando = false;
 let pronto = false;
 let timeoutSegurar;
@@ -82,9 +82,27 @@ function pararTimer() {
 
   const tempo = parseFloat(timerEl.innerText);
 
+  // SALA
   if (salaAtualId) {
     update(ref(db, `rooms/${salaAtualId}/players/${playerData.id}`), {
       tempo
+    });
+  }
+
+  // 🔥 RANKING (MELHOR TEMPO)
+  if (db && !isNaN(tempo)) {
+    const playerRef = ref(db, "ranking/" + playerData.id);
+
+    get(playerRef).then((snap) => {
+      const atual = snap.val();
+
+      if (!atual || tempo < atual.tempo) {
+        update(playerRef, {
+          nome: playerData.nome,
+          tempo: tempo,
+          data: Date.now()
+        });
+      }
     });
   }
 }
@@ -173,168 +191,34 @@ area.addEventListener("touchend", (e) => {
   handlePressEnd();
 }, { passive: false });
 
-// ================== GERAR CÓDIGO ==================
-async function gerarCodigo() {
-  let codigo;
-  let existe = true;
+// ================== RANKING ==================
+function carregarRanking() {
+  if (!db) return;
 
-  while (existe) {
-    codigo = Math.floor(100000 + Math.random() * 900000).toString();
-    const snap = await get(ref(db, "rooms/" + codigo));
-    existe = snap.exists();
-  }
+  onValue(ref(db, "ranking"), (snapshot) => {
+    const data = snapshot.val();
+    const lista = document.getElementById("ranking");
 
-  return codigo;
-}
+    if (!lista) return;
 
-// ================== SALAS ==================
-async function criarSala() {
-  const roomId = await gerarCodigo();
+    lista.innerHTML = "";
 
-  await update(ref(db, "rooms/" + roomId), {
-    host: playerData.id,
-    status: "waiting",
-    scramble: "",
-    finished: false,
-    players: {
-      [playerData.id]: {
-        nome: playerData.nome,
-        tempo: null
-      }
+    if (!data) {
+      lista.innerHTML = "<li>Nenhum tempo ainda</li>";
+      return;
     }
-  });
 
-  salaAtualId = roomId;
-  localStorage.setItem("roomId", roomId);
-
-  ouvirSala(roomId);
-  atualizarStatus("🟡 Aguardando jogador...");
-}
-
-function entrarSala() {
-  const roomId = document.getElementById("roomInput").value.trim();
-  if (!roomId) return alert("Digite o código");
-
-  update(ref(db, `rooms/${roomId}/players/${playerData.id}`), {
-    nome: playerData.nome,
-    tempo: null
-  });
-
-  salaAtualId = roomId;
-  localStorage.setItem("roomId", roomId);
-
-  ouvirSala(roomId);
-}
-
-// ================== OUVIR SALA ==================
-function ouvirSala(roomId) {
-
-  if (unsubscribeSala) unsubscribeSala();
-
-  unsubscribeSala = onValue(ref(db, "rooms/" + roomId), async (snap) => {
-    const sala = snap.val();
-    if (!sala) return;
-
-    const players = sala.players || {};
-    const ids = Object.keys(players);
-
-    if (ids.length === 1) atualizarStatus("🟡 Aguardando jogador...");
-    if (ids.length === 2 && sala.status === "waiting") atualizarStatus("🔥 Jogador encontrado!");
-    if (sala.status === "playing") atualizarStatus("🎮 Partida em andamento");
-
-    // HOST INICIA
-    if (
-      ids.length === 2 &&
-      sala.status === "waiting" &&
-      sala.host === playerData.id
-    ) {
-      const scramble = await randomScrambleForEvent("333");
-
-      update(ref(db, "rooms/" + roomId), {
-        status: "playing",
-        scramble,
-        finished: false
+    Object.values(data)
+      .sort((a, b) => a.tempo - b.tempo)
+      .slice(0, 10)
+      .forEach((t, i) => {
+        const li = document.createElement("li");
+        li.innerText = `#${i+1} ${t.nome} - ${t.tempo.toFixed(2)}s`;
+        lista.appendChild(li);
       });
-    }
-
-    if (sala.scramble) {
-      scrambleEl.innerText = sala.scramble;
-      cubePlayer.alg = sala.scramble;
-    }
-
-    // OPONENTE
-    const opponentId = ids.find(id => id !== playerData.id);
-
-    if (opponentId && players[opponentId]?.tempo !== null) {
-      timerOponenteEl.innerText = players[opponentId].tempo.toFixed(2);
-    }
-
-    // RESULTADO
-    const jogadores = Object.values(players);
-
-// só continua se os dois jogaram
-if (
-  jogadores.length === 2 &&
-  jogadores.every(p => p.tempo !== null) &&
-  sala.status === "playing" &&
-  !sala.finished
-) {
-  let [p1, p2] = jogadores;
-
-  let vencedor = null;
-
-  // DNF (tempo inválido)
-  if (isNaN(p1.tempo)) vencedor = p2;
-  else if (isNaN(p2.tempo)) vencedor = p1;
-  else if (p1.tempo < p2.tempo) vencedor = p1;
-  else if (p2.tempo < p1.tempo) vencedor = p2;
-  else vencedor = null; // empate
-
-  // trava resultado (evita loop infinito)
-  update(ref(db, "rooms/" + roomId), {
-    finished: true
-  });
-
-  if (vencedor) {
-    alert("🏆 " + vencedor.nome + " venceu!");
-  } else {
-    alert("🤝 Empate!");
-  }
-}
   });
 }
-
-// ================== SAIR ==================
-function sairSala() {
-  if (!salaAtualId) return;
-
-  remove(ref(db, `rooms/${salaAtualId}/players/${playerData.id}`));
-
-  salaAtualId = null;
-  localStorage.removeItem("roomId");
-
-  atualizarStatus("Saiu da sala");
-}
-
-// ================== COPIAR ==================
-function copiarCodigo() {
-  if (!salaAtualId) return;
-
-  navigator.clipboard.writeText(salaAtualId);
-  alert("Código copiado!");
-}
-
-// ================== RECONEXÃO ==================
-if (salaAtualId) {
-  ouvirSala(salaAtualId);
-  atualizarStatus("🔄 Reconectado");
-}
-
-// ================== BOTÕES ==================
-document.getElementById("btnCriarSala")?.addEventListener("click", criarSala);
-document.getElementById("btnEntrarSala")?.addEventListener("click", entrarSala);
-document.getElementById("btnSairSala")?.addEventListener("click", sairSala);
-document.getElementById("btnCopiarSala")?.addEventListener("click", copiarCodigo);
 
 // ================== INIT ==================
 novoScramble();
+carregarRanking();
