@@ -28,6 +28,8 @@ const area = document.getElementById("areaTimer");
 
 // ================== ESTADO ==================
 let salaAtualId = localStorage.getItem("roomId") || null;
+let unsubscribeSala = null;
+
 let startTime;
 let interval;
 let running = false;
@@ -109,19 +111,17 @@ function pararTimer() {
     });
   }
 
-  // 🔥 SOLO → novo scramble
+  // SOLO → novo scramble
   if (!salaAtualId) {
     novoScramble();
   }
 
-  // salvar local
   if (!isNaN(tempo)) {
     tempos.push(tempo);
     localStorage.setItem("tempos", JSON.stringify(tempos));
     atualizarStats();
   }
 
-  // ranking
   if (db && !isNaN(tempo) && tempo >= 2) {
     const playerRef = ref(db, "ranking/" + playerData.id);
 
@@ -163,7 +163,6 @@ function iniciarInspecao() {
 // ================== CONTROLE ==================
 function handlePressStart() {
   if (running) return pararTimer();
-
   if (!inspecionando) return iniciarInspecao();
 
   if (!segurando) {
@@ -189,7 +188,7 @@ function handlePressEnd() {
   }
 }
 
-// ================== PC ==================
+// ================== CONTROLES ==================
 document.addEventListener("keydown", (e) => {
   if (e.code === "Space" && !keyPressed) {
     e.preventDefault();
@@ -206,7 +205,6 @@ document.addEventListener("keyup", (e) => {
   }
 });
 
-// ================== MOBILE ==================
 area.addEventListener("touchstart", (e) => {
   e.preventDefault();
   handlePressStart();
@@ -231,11 +229,14 @@ async function gerarCodigo() {
   return codigo;
 }
 
+// 🔥 CRIAR SALA (AGORA COM SCRAMBLE)
 async function criarSala() {
   const roomId = await gerarCodigo();
+  const scramble = await randomScrambleForEvent("333");
 
   await update(ref(db, "rooms/" + roomId), {
     host: playerData.id,
+    scramble,
     players: {
       [playerData.id]: {
         nome: playerData.nome,
@@ -246,9 +247,12 @@ async function criarSala() {
 
   salaAtualId = roomId;
   localStorage.setItem("roomId", roomId);
+
+  ouvirSala(roomId); // 🔥 ESSENCIAL
   atualizarStatus("🟡 Aguardando jogador...");
 }
 
+// 🔥 ENTRAR SALA (COM LISTENER)
 function entrarSala() {
   const roomId = document.getElementById("roomInput").value.trim();
   if (!roomId) return alert("Digite o código");
@@ -260,6 +264,8 @@ function entrarSala() {
 
   salaAtualId = roomId;
   localStorage.setItem("roomId", roomId);
+
+  ouvirSala(roomId); // 🔥 ESSENCIAL
   atualizarStatus("🔄 Entrando...");
 }
 
@@ -270,12 +276,17 @@ function sairSala() {
   localStorage.removeItem("roomId");
   salaAtualId = null;
 
+  if (unsubscribeSala) unsubscribeSala();
+
   atualizarStatus("❌ Fora de sala");
 }
 
-// ================== OUVIR SALA ==================
-if (salaAtualId) {
-  onValue(ref(db, "rooms/" + salaAtualId), (snap) => {
+// 🔥 OUVIR SALA (FIX REAL)
+function ouvirSala(roomId) {
+
+  if (unsubscribeSala) unsubscribeSala();
+
+  unsubscribeSala = onValue(ref(db, "rooms/" + roomId), (snap) => {
     const sala = snap.val();
     if (!sala) return;
 
@@ -292,6 +303,10 @@ if (salaAtualId) {
         cubePlayer.alg = sala.scramble;
       }, 50);
     }
+
+    // STATUS
+    if (ids.length === 1) atualizarStatus("🟡 Aguardando jogador...");
+    if (ids.length === 2) atualizarStatus("🔥 Jogador encontrado!");
 
     // TEMPO OPONENTE
     if (opponentId && players[opponentId]) {
@@ -316,64 +331,9 @@ document.getElementById("btnCopiarSala")?.addEventListener("click", () => {
   alert("Código copiado!");
 });
 
-// ================== RANKING ==================
-function carregarRanking() {
-  if (!db) return;
-
-  onValue(ref(db, "ranking"), (snapshot) => {
-    const data = snapshot.val();
-    const lista = document.getElementById("ranking");
-
-    if (!lista) return;
-
-    lista.innerHTML = "";
-
-    if (!data) {
-      lista.innerHTML = "<li>Nenhum tempo ainda</li>";
-      return;
-    }
-
-    Object.values(data)
-      .sort((a, b) => a.tempo - b.tempo)
-      .slice(0, 10)
-      .forEach((t, i) => {
-        const li = document.createElement("li");
-        li.innerText = `#${i+1} ${t.nome} - ${t.tempo.toFixed(2)}s`;
-        lista.appendChild(li);
-      });
-  });
-}
-
-// ================== STATS ==================
-function atualizarStats() {
-  if (!tempos.length) return;
-
-  const validos = tempos.filter(t => typeof t === "number" && !isNaN(t));
-  if (!validos.length) return;
-
-  const best = Math.min(...validos);
-  const media = validos.reduce((a, b) => a + b, 0) / validos.length;
-
-  document.getElementById("best").innerText = best.toFixed(2) + "s";
-  document.getElementById("media").innerText = media.toFixed(2) + "s";
-  document.getElementById("total").innerText = validos.length;
-}
-
 // ================== INIT ==================
-if (!salaAtualId) {
+if (salaAtualId) {
+  ouvirSala(salaAtualId);
+} else {
   novoScramble();
-}
-
-carregarRanking();
-atualizarStats();
-
-// ================== LIVE ==================
-function enviarTempoLive() {
-  if (!salaAtualId || !running) return;
-
-  const tempo = parseFloat(timerEl.innerText);
-
-  update(ref(db, `rooms/${salaAtualId}/players/${playerData.id}`), {
-    tempoLive: tempo
-  });
 }
