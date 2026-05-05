@@ -26,12 +26,12 @@
 
     <h3>Salas</h3>
     <p id="statusSala">❌ Fora de sala</p>
+
     <button id="btnCriarSala">Criar Sala</button>
     <input id="roomInput" placeholder="Código da sala">
     <button id="btnEntrarSala">Entrar</button>
     <button id="btnCopiarSala">Copiar Código</button>
-<button id="btnSairSala">Sair da Sala</button>
-<p id="statusSala"></p>
+    <button id="btnSairSala">Sair da Sala</button>
 
   </div>
 
@@ -44,19 +44,17 @@
 
     <div id="areaTimer" class="duel">
 
-  <div class="playerBox">
-    <p>Você</p>
-    <div id="timer">0.00</div>
-  </div>
+      <div class="playerBox">
+        <p>Você</p>
+        <div id="timer">0.00</div>
+      </div>
 
-  <div class="playerBox">
-    <p>Oponente</p>
-    <div id="timerOponente">0.00</div>
-  </div>
+      <div class="playerBox">
+        <p>Oponente</p>
+        <div id="timerOponente">0.00</div>
+      </div>
 
-</div>
-
-<p id="statusSala"></p>
+    </div>
     
     <div id="cubo"></div>
 
@@ -70,20 +68,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getDatabase, ref, push, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBnK5Orp5iX2wZjnNVxOmvqfNowVL_KgdU",
+  apiKey: "AIzaSy...",
   authDomain: "cubify-6c737.firebaseapp.com",
   databaseURL: "https://cubify-6c737-default-rtdb.firebaseio.com",
   projectId: "cubify-6c737",
   storageBucket: "cubify-6c737.firebasestorage.app",
   messagingSenderId: "208304439238",
-  appId: "1:208304439238:web:ec68ecb6d6ef718c45fcc7",
-  measurementId: "G-YSV3X8VY4B"
+  appId: "1:208304439238:web:ec68ecb6d6ef718c45fcc7"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// 🔥 expõe tudo corretamente
 window.db = db;
 window.ref = ref;
 window.push = push;
