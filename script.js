@@ -62,7 +62,6 @@ async function novoScramble() {
   const scramble = await randomScrambleForEvent("333");
   scrambleEl.innerText = scramble;
 
-  // 🔥 FIX MOBILE
   setTimeout(() => {
     cubePlayer.alg = scramble;
   }, 50);
@@ -99,9 +98,7 @@ function pararTimer() {
   running = false;
 
   let tempo = timerEl.innerText;
-
-  if (tempo === "DNF") tempo = NaN;
-  else tempo = parseFloat(tempo);
+  tempo = tempo === "DNF" ? NaN : parseFloat(tempo);
 
   if (salaAtualId) {
     update(ref(db, `rooms/${salaAtualId}/players/${playerData.id}`), {
@@ -110,17 +107,19 @@ function pararTimer() {
     });
   }
 
-  // 🔥 SCRAMBLE SOLO
+  // 🔥 SOLO → novo scramble automático
   if (!salaAtualId) {
     novoScramble();
   }
 
+  // salvar local
   if (!isNaN(tempo)) {
     tempos.push(tempo);
     localStorage.setItem("tempos", JSON.stringify(tempos));
     atualizarStats();
   }
 
+  // ranking
   if (db && !isNaN(tempo) && tempo >= 2) {
     const playerRef = ref(db, "ranking/" + playerData.id);
 
@@ -216,25 +215,68 @@ area.addEventListener("touchend", (e) => {
   handlePressEnd();
 }, { passive: false });
 
+// ================== SALAS ==================
+async function criarSala() {
+  const roomId = Math.floor(100000 + Math.random() * 900000).toString();
+
+  await update(ref(db, "rooms/" + roomId), {
+    host: playerData.id,
+    players: {
+      [playerData.id]: {
+        nome: playerData.nome,
+        tempo: null,
+        tempoLive: null
+      }
+    }
+  });
+
+  salaAtualId = roomId;
+  localStorage.setItem("roomId", roomId);
+
+  atualizarStatus("Sala criada");
+}
+
+function entrarSala() {
+  const roomId = document.getElementById("roomInput").value.trim();
+  if (!roomId) return alert("Digite o código");
+
+  update(ref(db, `rooms/${roomId}/players/${playerData.id}`), {
+    nome: playerData.nome,
+    tempo: null,
+    tempoLive: null
+  });
+
+  salaAtualId = roomId;
+  localStorage.setItem("roomId", roomId);
+}
+
+function sairSala() {
+  if (!salaAtualId) return;
+
+  remove(ref(db, `rooms/${salaAtualId}/players/${playerData.id}`));
+
+  salaAtualId = null;
+  localStorage.removeItem("roomId");
+
+  atualizarStatus("Saiu da sala");
+
+  novoScramble();
+}
+
 // ================== OUVIR SALA ==================
 if (salaAtualId) {
   onValue(ref(db, "rooms/" + salaAtualId), (snap) => {
     const sala = snap.val();
     if (!sala) return;
 
-    const players = sala.players || {};
-    const ids = Object.keys(players);
-
-    const opponentId = ids.find(id => id !== playerData.id);
-
-    // 🔥 SCRAMBLE FIX MOBILE
     if (sala.scramble) {
       scrambleEl.innerText = sala.scramble;
-
-      setTimeout(() => {
-        cubePlayer.alg = sala.scramble;
-      }, 50);
+      setTimeout(() => cubePlayer.alg = sala.scramble, 50);
     }
+
+    const players = sala.players || {};
+    const ids = Object.keys(players);
+    const opponentId = ids.find(id => id !== playerData.id);
 
     if (opponentId && players[opponentId]) {
       const op = players[opponentId];
