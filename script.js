@@ -98,7 +98,9 @@ function pararTimer() {
   running = false;
 
   let tempo = timerEl.innerText;
-  tempo = tempo === "DNF" ? NaN : parseFloat(tempo);
+
+  if (tempo === "DNF") tempo = NaN;
+  else tempo = parseFloat(tempo);
 
   if (salaAtualId) {
     update(ref(db, `rooms/${salaAtualId}/players/${playerData.id}`), {
@@ -107,19 +109,17 @@ function pararTimer() {
     });
   }
 
-  // 🔥 SOLO → novo scramble automático
+  // SOLO → novo scramble
   if (!salaAtualId) {
     novoScramble();
   }
 
-  // salvar local
   if (!isNaN(tempo)) {
     tempos.push(tempo);
     localStorage.setItem("tempos", JSON.stringify(tempos));
     atualizarStats();
   }
 
-  // ranking
   if (db && !isNaN(tempo) && tempo >= 2) {
     const playerRef = ref(db, "ranking/" + playerData.id);
 
@@ -161,7 +161,6 @@ function iniciarInspecao() {
 // ================== CONTROLE ==================
 function handlePressStart() {
   if (running) return pararTimer();
-
   if (!inspecionando) return iniciarInspecao();
 
   if (!segurando) {
@@ -187,7 +186,7 @@ function handlePressEnd() {
   }
 }
 
-// ================== PC ==================
+// ================== CONTROLES ==================
 document.addEventListener("keydown", (e) => {
   if (e.code === "Space" && !keyPressed) {
     e.preventDefault();
@@ -204,7 +203,6 @@ document.addEventListener("keyup", (e) => {
   }
 });
 
-// ================== MOBILE ==================
 area.addEventListener("touchstart", (e) => {
   e.preventDefault();
   handlePressStart();
@@ -215,69 +213,70 @@ area.addEventListener("touchend", (e) => {
   handlePressEnd();
 }, { passive: false });
 
-// ================== SALAS ==================
+// ================== SALAS (CORRIGIDO) ==================
 async function criarSala() {
-  const roomId = Math.floor(100000 + Math.random() * 900000).toString();
+  const id = Math.floor(100000 + Math.random() * 900000).toString();
 
-  await update(ref(db, "rooms/" + roomId), {
-    host: playerData.id,
+  await update(ref(db, "rooms/" + id), {
     players: {
       [playerData.id]: {
         nome: playerData.nome,
-        tempo: null,
-        tempoLive: null
+        tempo: null
       }
     }
   });
 
-  salaAtualId = roomId;
-  localStorage.setItem("roomId", roomId);
+  salaAtualId = id;
+  localStorage.setItem("roomId", id);
 
+  ouvirSala();
   atualizarStatus("Sala criada");
 }
 
 function entrarSala() {
-  const roomId = document.getElementById("roomInput").value.trim();
-  if (!roomId) return alert("Digite o código");
+  const id = document.getElementById("roomInput").value.trim();
+  if (!id) return;
 
-  update(ref(db, `rooms/${roomId}/players/${playerData.id}`), {
+  update(ref(db, "rooms/" + id + "/players/" + playerData.id), {
     nome: playerData.nome,
-    tempo: null,
-    tempoLive: null
+    tempo: null
   });
 
-  salaAtualId = roomId;
-  localStorage.setItem("roomId", roomId);
+  salaAtualId = id;
+  localStorage.setItem("roomId", id);
+
+  ouvirSala();
 }
 
 function sairSala() {
   if (!salaAtualId) return;
 
-  remove(ref(db, `rooms/${salaAtualId}/players/${playerData.id}`));
+  remove(ref(db, "rooms/" + salaAtualId + "/players/" + playerData.id));
 
   salaAtualId = null;
   localStorage.removeItem("roomId");
 
   atualizarStatus("Saiu da sala");
-
-  novoScramble();
 }
 
 // ================== OUVIR SALA ==================
-if (salaAtualId) {
+function ouvirSala() {
   onValue(ref(db, "rooms/" + salaAtualId), (snap) => {
     const sala = snap.val();
     if (!sala) return;
 
+    const players = sala.players || {};
+    const ids = Object.keys(players);
+
+    const opponentId = ids.find(id => id !== playerData.id);
+
+    // SCRAMBLE
     if (sala.scramble) {
       scrambleEl.innerText = sala.scramble;
       setTimeout(() => cubePlayer.alg = sala.scramble, 50);
     }
 
-    const players = sala.players || {};
-    const ids = Object.keys(players);
-    const opponentId = ids.find(id => id !== playerData.id);
-
+    // OPONENTE
     if (opponentId && players[opponentId]) {
       const op = players[opponentId];
 
@@ -292,13 +291,9 @@ if (salaAtualId) {
 
 // ================== RANKING ==================
 function carregarRanking() {
-  if (!db) return;
-
   onValue(ref(db, "ranking"), (snapshot) => {
     const data = snapshot.val();
     const lista = document.getElementById("ranking");
-
-    if (!lista) return;
 
     lista.innerHTML = "";
 
@@ -322,8 +317,7 @@ function carregarRanking() {
 function atualizarStats() {
   if (!tempos.length) return;
 
-  const validos = tempos.filter(t => typeof t === "number" && !isNaN(t));
-  if (!validos.length) return;
+  const validos = tempos.filter(t => !isNaN(t));
 
   const best = Math.min(...validos);
   const media = validos.reduce((a, b) => a + b, 0) / validos.length;
@@ -334,9 +328,8 @@ function atualizarStats() {
 }
 
 // ================== INIT ==================
-if (!salaAtualId) {
-  novoScramble();
-}
+if (!salaAtualId) novoScramble();
+else ouvirSala();
 
 carregarRanking();
 atualizarStats();
