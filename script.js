@@ -69,8 +69,22 @@ function iniciarTimer() {
   inspecionando = false;
 
   startTime = Date.now();
+
+  // 🔥 envia início
+  if (salaAtualId) {
+    update(ref(db, `rooms/${salaAtualId}/players/${playerData.id}`), {
+      tempoLive: 0
+    });
+  }
+
   interval = setInterval(() => {
-    timerEl.innerText = ((Date.now() - startTime) / 1000).toFixed(2);
+    let tempo = (Date.now() - startTime) / 1000;
+    timerEl.innerText = tempo.toFixed(2);
+
+    if (Math.floor(tempo * 10) !== Math.floor((tempo - 0.01) * 10)) {
+      enviarTempoLive();
+    }
+
   }, 10);
 
   running = true;
@@ -82,14 +96,14 @@ function pararTimer() {
 
   const tempo = parseFloat(timerEl.innerText);
 
-  // SALA
   if (salaAtualId) {
     update(ref(db, `rooms/${salaAtualId}/players/${playerData.id}`), {
-      tempo
+      tempo,
+      tempoLive: null
     });
   }
 
-  // 🔥 RANKING (MELHOR TEMPO)
+  // ranking
   if (db && !isNaN(tempo)) {
     const playerRef = ref(db, "ranking/" + playerData.id);
 
@@ -191,6 +205,29 @@ area.addEventListener("touchend", (e) => {
   handlePressEnd();
 }, { passive: false });
 
+// ================== 🔥 OUVIR SALA (NOVO - AO VIVO) ==================
+if (salaAtualId) {
+  onValue(ref(db, "rooms/" + salaAtualId), (snap) => {
+    const sala = snap.val();
+    if (!sala) return;
+
+    const players = sala.players || {};
+    const ids = Object.keys(players);
+
+    const opponentId = ids.find(id => id !== playerData.id);
+
+    if (opponentId && players[opponentId]) {
+      const op = players[opponentId];
+
+      if (op.tempoLive !== null && op.tempoLive !== undefined) {
+        timerOponenteEl.innerText = op.tempoLive.toFixed(2);
+      } else if (op.tempo !== null) {
+        timerOponenteEl.innerText = op.tempo.toFixed(2);
+      }
+    }
+  });
+}
+
 // ================== RANKING ==================
 function carregarRanking() {
   if (!db) return;
@@ -222,3 +259,14 @@ function carregarRanking() {
 // ================== INIT ==================
 novoScramble();
 carregarRanking();
+
+// ================== LIVE ==================
+function enviarTempoLive() {
+  if (!salaAtualId || !running) return;
+
+  const tempo = parseFloat(timerEl.innerText);
+
+  update(ref(db, `rooms/${salaAtualId}/players/${playerData.id}`), {
+    tempoLive: tempo
+  });
+}
